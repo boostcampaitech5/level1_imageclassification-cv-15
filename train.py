@@ -151,15 +151,14 @@ def train(data_dir, model_dir, args):
         lr=args.lr,
         weight_decay=5e-4
     )
-    scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
-    #scheduler = ReduceLROnPlateau(optimizer, mode='min', float=0.1, patience=5)
+    #scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
 
     # -- logging
     logger = SummaryWriter(log_dir=save_dir)
     with open(os.path.join(save_dir, 'config.json'), 'w', encoding='utf-8') as f:
         json.dump(vars(args), f, ensure_ascii=False, indent=4)
     
-    wandb.config = args
 
     best_val_acc = 0
     best_val_loss = np.inf
@@ -200,7 +199,7 @@ def train(data_dir, model_dir, args):
                 matches = 0
                 wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss}})
 
-        scheduler.step()
+        #scheduler.step()
         ed = time.time()
         print(f"training time : {(ed - st):.4f}s")
 
@@ -247,7 +246,7 @@ def train(data_dir, model_dir, args):
             logger.add_scalar("Val/accuracy", val_acc, epoch)
             logger.add_figure("results", figure, epoch)
             wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss}})
-            # scheduler.step(val_loss)
+            scheduler.step(val_loss)
             print()
 
 
@@ -270,6 +269,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr_decay_step', type=int, default=20, help='learning rate scheduler deacy step (default: 20)')
     parser.add_argument('--log_interval', type=int, default=20, help='how many batches to wait before logging training status')
     parser.add_argument('--name', default='exp', help='model save at {SM_MODEL_DIR}/{name}')
+    parser.add_argument('--wandb', type=bool, default=True, help='use wandb')
 
     # Container environment
     parser.add_argument('--data_dir', type=str, default=os.environ.get('SM_CHANNEL_TRAIN', '/opt/ml/input/data/train/images'))

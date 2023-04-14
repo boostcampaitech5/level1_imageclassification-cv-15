@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-
+import timm # convnext
 
 class BaseModel(nn.Module):
     def __init__(self, num_classes):
@@ -32,6 +32,25 @@ class BaseModel(nn.Module):
         x = x.view(-1, 128)
         return self.fc(x)
 
+class ConvNext(nn.Module):
+    def __init__(self, num_classes=18):
+        super(ConvNext, self).__init__()
+        self.base_model = timm.create_model('convnext_base', pretrained=True)  # pretrained convnext_base model을 사용
+        self.base_model.head.fc = nn.Linear(self.base_model.head.fc.in_features, num_classes, bias=True)  # 마지막 레이어를 수정합니다.
+
+    def forward(self, x):
+        x = self.base_model(x)
+        return x
+
+class ConvNext_22k(nn.Module):
+    def __init__(self, num_classes=18):
+        super(ConvNext_22k, self).__init__()
+        self.base_model = timm.create_model('convnext_base_in22k', pretrained=True)  # pretrained convnextv2_base model을 사용
+        self.base_model.head.fc = nn.Linear(self.base_model.head.fc.in_features, num_classes, bias=True)  # 마지막 레이어를 수정합니다.
+
+    def forward(self, x):
+        x = self.base_model(x)
+        return x
 
 # Custom Model Template
 class MyModel(nn.Module):

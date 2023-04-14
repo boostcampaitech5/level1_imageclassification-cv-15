@@ -7,17 +7,17 @@ import random
 import re
 from importlib import import_module
 from pathlib import Path
-
+import time
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset import MaskBaseDataset
 from loss import create_criterion
-
+import wandb
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -84,6 +84,14 @@ def increment_path(path, exist_ok=False):
 
 def train(data_dir, model_dir, args):
     seed_everything(args.seed)
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="level1_be1",
+        config=vars(args)
+    )
+    wandb.run.name = args.name
+    wandb.run.save()
 
     save_dir = increment_path(os.path.join(model_dir, args.name))
 
@@ -144,16 +152,20 @@ def train(data_dir, model_dir, args):
         weight_decay=5e-4
     )
     scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    #scheduler = ReduceLROnPlateau(optimizer, mode='min', float=0.1, patience=5)
 
     # -- logging
     logger = SummaryWriter(log_dir=save_dir)
     with open(os.path.join(save_dir, 'config.json'), 'w', encoding='utf-8') as f:
         json.dump(vars(args), f, ensure_ascii=False, indent=4)
+    
+    wandb.config = args
 
     best_val_acc = 0
     best_val_loss = np.inf
     for epoch in range(args.epochs):
         # train loop
+        st = time.time()
         model.train()
         loss_value = 0
         matches = 0
@@ -186,8 +198,11 @@ def train(data_dir, model_dir, args):
 
                 loss_value = 0
                 matches = 0
+                wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss}})
 
         scheduler.step()
+        ed = time.time()
+        print(f"training time : {(ed - st):.4f}s")
 
         # val loop
         with torch.no_grad():
@@ -231,6 +246,8 @@ def train(data_dir, model_dir, args):
             logger.add_scalar("Val/loss", val_loss, epoch)
             logger.add_scalar("Val/accuracy", val_acc, epoch)
             logger.add_figure("results", figure, epoch)
+            wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss}})
+            # scheduler.step(val_loss)
             print()
 
 
@@ -239,17 +256,17 @@ if __name__ == '__main__':
 
     # Data and model checkpoints directories
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')
-    parser.add_argument('--epochs', type=int, default=1, help='number of epochs to train (default: 1)')
+    parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 1)')
     parser.add_argument('--dataset', type=str, default='MaskBaseDataset', help='dataset augmentation type (default: MaskBaseDataset)')
     parser.add_argument('--augmentation', type=str, default='BaseAugmentation', help='data augmentation type (default: BaseAugmentation)')
-    parser.add_argument("--resize", nargs="+", type=list, default=[128, 96], help='resize size for image when training')
+    parser.add_argument("--resize", nargs="+", type=int, default=[128, 96], help='resize size for image when training')
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--valid_batch_size', type=int, default=1000, help='input batch size for validing (default: 1000)')
     parser.add_argument('--model', type=str, default='BaseModel', help='model type (default: BaseModel)')
-    parser.add_argument('--optimizer', type=str, default='SGD', help='optimizer type (default: SGD)')
+    parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer type (default: SGD)')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 1e-3)')
     parser.add_argument('--val_ratio', type=float, default=0.2, help='ratio for validaton (default: 0.2)')
-    parser.add_argument('--criterion', type=str, default='cross_entropy', help='criterion type (default: cross_entropy)')
+    parser.add_argument('--criterion', type=str, default='f1', help='criterion type (default: f1)')
     parser.add_argument('--lr_decay_step', type=int, default=20, help='learning rate scheduler deacy step (default: 20)')
     parser.add_argument('--log_interval', type=int, default=20, help='how many batches to wait before logging training status')
     parser.add_argument('--name', default='exp', help='model save at {SM_MODEL_DIR}/{name}')

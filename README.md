@@ -11,6 +11,12 @@
 
 ## News
 
+**`2023-04-14` -  Model Performance Test**: 
+- Final Model : MobileNetV2 (0.8 F1 - Score)
+- cross_entropy_loss -> F1-Loss
+- optimizer Adam 고정
+- lr step : 4
+
 **`2023-04-13` - 강나훈**: 
 - baseline Sub Branch
 

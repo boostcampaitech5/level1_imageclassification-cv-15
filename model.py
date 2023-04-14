@@ -133,6 +133,7 @@ class MobileNetV2(nn.Module):
         self.model = models.mobilenet_v2(pretrained=True)
         # for name, param in self.model.named_parameters():
         #    param.requires_grad_(False)
+        #self.model.features[0][0] = nn.Conv2d(1, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
         self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, num_classes)
         # self.model.fc.requires_grad_(True)
     

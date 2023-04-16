@@ -18,6 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 from dataset import MaskBaseDataset
 from loss import create_criterion
 import wandb
+from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -64,6 +65,15 @@ def grid_image(np_images, gts, preds, n=16, shuffle=False):
     return figure
 
 
+def figure_to_array(fig):
+    """
+    plt.figure를 RGBA로 변환(layer가 4개)
+    shape: height, width, layer
+    """
+    fig.canvas.draw()
+    return np.array(fig.canvas.renderer._renderer)
+
+
 def increment_path(path, exist_ok=False):
     """ Automatically increment path, i.e. runs/exp --> runs/exp0, runs/exp1 etc.
 
@@ -84,14 +94,15 @@ def increment_path(path, exist_ok=False):
 
 def train(data_dir, model_dir, args):
     seed_everything(args.seed)
-    # start a new wandb run to track this script
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="level1_be1",
-        config=vars(args)
-    )
-    wandb.run.name = args.name
-    wandb.run.save()
+    if args.wandb:
+        # start a new wandb run to track this script
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="level1_be1",
+            config=vars(args)
+        )
+        wandb.run.name = args.name
+        wandb.run.save()
 
     save_dir = increment_path(os.path.join(model_dir, args.name))
 
@@ -107,7 +118,7 @@ def train(data_dir, model_dir, args):
     num_classes = dataset.num_classes  # 18
 
     # -- augmentation
-    transform_module = getattr(import_module("dataset"), args.augmentation)  # default: BaseAugmentation
+    transform_module = getattr(import_module("augmentation"), args.augmentation)  # default: BaseAugmentation
     transform = transform_module(
         resize=args.resize,
         mean=dataset.mean,
@@ -145,14 +156,21 @@ def train(data_dir, model_dir, args):
 
     # -- loss & metric
     criterion = create_criterion(args.criterion)  # default: cross_entropy
-    opt_module = getattr(import_module("torch.optim"), args.optimizer)  # default: SGD
-    optimizer = opt_module(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=args.lr,
-        weight_decay=5e-4
-    )
+
+    if args.optimizer == "AdamW":
+        optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
+    else:
+        opt_module = getattr(import_module("torch.optim"), args.optimizer)  # default: SGD
+        optimizer = opt_module(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=args.lr,
+            weight_decay=5e-4
+        )
     #scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+    # scheduler = get_cosine_schedule_with_warmup(optimizer,
+    #                                             num_warmup_steps=int(len(train_set)/args.batch_size/10),
+    #                                             num_training_steps=int(len(train_set) * args.epochs /args.batch_size))
 
     # -- logging
     logger = SummaryWriter(log_dir=save_dir)
@@ -197,9 +215,10 @@ def train(data_dir, model_dir, args):
 
                 loss_value = 0
                 matches = 0
-                wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss}})
+                if args.wandb:
+                    wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss}})
 
-        #scheduler.step()
+        # scheduler.step()
         ed = time.time()
         print(f"training time : {(ed - st):.4f}s")
 
@@ -232,11 +251,12 @@ def train(data_dir, model_dir, args):
 
             val_loss = np.sum(val_loss_items) / len(val_loader)
             val_acc = np.sum(val_acc_items) / len(val_set)
-            best_val_loss = min(best_val_loss, val_loss)
-            if val_acc > best_val_acc:
-                print(f"New best model for val accuracy : {val_acc:4.2%}! saving the best model..")
+            # best_val_loss = min(best_val_loss, val_loss)
+            best_val_acc = max(best_val_acc, val_acc)
+            if val_loss < best_val_loss:
+                print(f"New best model for val loss : {val_loss:4.2%}! saving the best model..")
                 torch.save(model.module.state_dict(), f"{save_dir}/best.pth")
-                best_val_acc = val_acc
+                best_val_loss = val_loss
             torch.save(model.module.state_dict(), f"{save_dir}/last.pth")
             print(
                 f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
@@ -245,7 +265,9 @@ def train(data_dir, model_dir, args):
             logger.add_scalar("Val/loss", val_loss, epoch)
             logger.add_scalar("Val/accuracy", val_acc, epoch)
             logger.add_figure("results", figure, epoch)
-            wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss}})
+            if args.wandb:
+                wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss}, 
+                           "valid_examples" : wandb.Image(figure_to_array(figure), caption="valid images")})
             scheduler.step(val_loss)
             print()
 
@@ -260,7 +282,7 @@ if __name__ == '__main__':
     parser.add_argument('--augmentation', type=str, default='BaseAugmentation', help='data augmentation type (default: BaseAugmentation)')
     parser.add_argument("--resize", nargs="+", type=int, default=[128, 96], help='resize size for image when training')
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training (default: 64)')
-    parser.add_argument('--valid_batch_size', type=int, default=1000, help='input batch size for validing (default: 1000)')
+    parser.add_argument('--valid_batch_size', type=int, default=256, help='input batch size for validing (default: 256)')
     parser.add_argument('--model', type=str, default='BaseModel', help='model type (default: BaseModel)')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer type (default: SGD)')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 1e-3)')

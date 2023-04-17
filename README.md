@@ -69,7 +69,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 </table>
 
 <!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
+<!-- prettier-ignore-endd -->
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 

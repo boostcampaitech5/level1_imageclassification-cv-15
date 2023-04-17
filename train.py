@@ -96,6 +96,40 @@ def increment_path(path, exist_ok=False):
         return f"{path}{n}"
 
 
+# cutmix function
+def rand_bbox(size, lam):
+    W = size[2]
+    H = size[3]
+    cut_rat = np.sqrt(1. - lam)
+    cut_w = int(W * cut_rat)
+    cut_h = int(H * cut_rat)
+
+    # uniform
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+
+    bbx1 = np.clip(cx - cut_w // 2, 0, W)
+    bby1 = np.clip(cy - cut_h // 2, 0, H)
+    bbx2 = np.clip(cx + cut_w // 2, 0, W)
+    bby2 = np.clip(cy + cut_h // 2, 0, H)
+    return bbx1, bby1, bbx2, bby2
+
+def cutmix(data, target, alpha):
+    indices = torch.randperm(data.size(0))
+    shuffled_data = data[indices]
+    shuffled_target = target[indices]
+
+    lam = np.clip(np.random.beta(alpha, alpha),0.3,0.4)
+    bbx1, bby1, bbx2, bby2 = rand_bbox(data.size(), lam)
+    new_data = data.clone()
+    new_data[:, :, bby1:bby2, bbx1:bbx2] = data[indices, :, bby1:bby2, bbx1:bbx2]
+    # adjust lambda to exactly match pixel ratio
+    lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (data.size()[-1] * data.size()[-2]))
+    targets = (target, shuffled_target, lam)
+
+    return new_data, targets
+
+
 def train(data_dir, model_dir, args):
     seed_everything(args.seed)
     if args.wandb:
@@ -170,8 +204,8 @@ def train(data_dir, model_dir, args):
             lr=args.lr,
             weight_decay=5e-4
         )
-    #scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+    scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    # scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
     # scheduler = get_cosine_schedule_with_warmup(optimizer,
     #                                             num_warmup_steps=int(len(train_set)/args.batch_size/10),
     #                                             num_training_steps=int(len(train_set) * args.epochs /args.batch_size))
@@ -196,10 +230,23 @@ def train(data_dir, model_dir, args):
             labels = labels.to(device)
 
             optimizer.zero_grad()
+            # use mix or not
+            if args.cutmix and epoch < args.epochs-10: 
+                mix_decision = np.random.rand()
+                if mix_decision < args.mix_prob:
+                    inputs, mix_labels = cutmix(inputs, labels, 1.0)
+                else: 
+                  pass
+            else: mix_decision = 1
 
             outs = model(inputs)
+            if mix_decision < args.mix_prob:
+                loss = criterion(outs, mix_labels[0]) * mix_labels[2] + criterion(outs, mix_labels[1]) * (1 - mix_labels[2])
+            else:
+                loss = criterion(outs, labels)
+
             preds = torch.argmax(outs, dim=-1)
-            loss = criterion(outs, labels)
+            # loss = criterion(outs, labels)
 
             loss.backward()
             optimizer.step()
@@ -222,7 +269,7 @@ def train(data_dir, model_dir, args):
                 if args.wandb:
                     wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss}})
 
-        # scheduler.step()
+        scheduler.step()
         ed = time.time()
         print(f"training time : {(ed - st):.4f}s")
 
@@ -272,7 +319,7 @@ def train(data_dir, model_dir, args):
             if args.wandb:
                 wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss}, 
                            "valid_examples" : wandb.Image(figure_to_array(figure), caption="valid images")})
-            scheduler.step(val_loss)
+            # scheduler.step(val_loss)
             print()
 
 

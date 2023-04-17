@@ -14,7 +14,17 @@ class BaseAugmentation:
         self.transform = Compose([
             Resize(*resize),
             Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
-            ToGray(True),
+            ToTensorV2(),
+        ])
+
+    def __call__(self, image):
+        return self.transform(image=image)
+
+class BaseAugmentationJ1:
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose([
+            Resize(*resize),
+            Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
             ToTensorV2(),
         ])
 

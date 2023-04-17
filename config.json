@@ -1,6 +1,6 @@
 {
     "seed": 42,
-    "epochs": 60,
+    "epochs": 30,
     "dataset": "MaskBaseDataset",
     "augmentation": "BaseAugmentation",
     "resize": [
@@ -9,15 +9,15 @@
     ],
     "batch_size": 64,
     "valid_batch_size": 512,
-    "model": "EfficientNetb2",
+    "model": "MobileNetV2",
     "optimizer": "Adam",
     "lr": 0.001,
     "val_ratio": 0.2,
     "criterion": "f1",
-    "lr_decay_step": 20,
+    "lr_decay_step": 10,
     "log_interval": 20,
-    "name": "EfficientNetb2_200_200_LRplateau_crop_gray",
+    "name": "js_MobileNetV2_augment_base",
     "wandb": true,
-    "data_dir": "/opt/ml/input_crop/data/train/images",
+    "data_dir": "/opt/ml/level1/input_crop/data/train/images",
     "model_dir": "./model"
 }

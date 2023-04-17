@@ -18,7 +18,7 @@ from easydict import EasyDict
 from dataset import MaskBaseDataset
 from loss import create_criterion
 import wandb
-from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
+# from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -96,7 +96,7 @@ def increment_path(path, exist_ok=False):
         return f"{path}{n}"
 
 
-def train(data_dir, model_dir, args):
+def train(s, model_dir, args):
     seed_everything(args.seed)
     if args.wandb:
         # start a new wandb run to track this script
@@ -222,7 +222,7 @@ def train(data_dir, model_dir, args):
                 if args.wandb:
                     wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss}})
 
-        # scheduler.step()
+        scheduler.step()
         ed = time.time()
         print(f"training time : {(ed - st):.4f}s")
 
@@ -272,7 +272,7 @@ def train(data_dir, model_dir, args):
             if args.wandb:
                 wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss}, 
                            "valid_examples" : wandb.Image(figure_to_array(figure), caption="valid images")})
-            scheduler.step(val_loss)
+            # scheduler.step(val_loss)
             print()
 
 

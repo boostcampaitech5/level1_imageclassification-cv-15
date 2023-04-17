@@ -24,8 +24,8 @@ class BaseAugmentation:
     def __init__(self, resize, mean, std, **args):
         self.transform = Compose([
             Resize(resize, Image.BILINEAR),
-            ToTensor(),
             Normalize(mean=mean, std=std),
+            ToTensor(),
         ])
 
     def __call__(self, image):

@@ -3,7 +3,37 @@ import torch.nn.functional as F
 from torchvision import datasets, models, transforms
 import torch
 import timm
-    
+
+class BaseModel(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=7, stride=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.25)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(128, num_classes)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(x)
+
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+
+        x = self.conv3(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout2(x)
+
+        x = self.avgpool(x)
+        x = x.view(-1, 128)
+        return self.fc(x)
+
 class SpinalNet(nn.Module):
     def __init__(self, num_classes, half_in_size, layer_width):
         super(SpinalNet, self).__init__()
@@ -87,7 +117,7 @@ class Resnet18(nn.Module):
         x = self.base_model(x)
         return 
 
-class ResNext(nn.Module):
+class ResNext101(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
 
@@ -99,7 +129,19 @@ class ResNext(nn.Module):
     
     def forward(self, x):
         return self.model(x)
+
+class ResNext50(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+
+        self.model = models.resnext50_32x4d(pretrained=True)
+        # for name, param in self.model.named_parameters():
+        #    param.requires_grad_(False)
+        self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
+        # self.model.fc.requires_grad_(True)
     
+    def forward(self, x):
+        return self.model(x)
 
 class Resnet34(nn.Module):
     def __init__(self, num_classes):
@@ -133,6 +175,7 @@ class MobileNetV2(nn.Module):
         self.model = models.mobilenet_v2(pretrained=True)
         # for name, param in self.model.named_parameters():
         #    param.requires_grad_(False)
+        #self.model.features[0][0] = nn.Conv2d(1, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
         self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, num_classes)
         # self.model.fc.requires_grad_(True)
     
@@ -157,10 +200,66 @@ class EfficientNetb0(nn.Module):
         x = self.efficientnet_model(x)
         return x
     
+class EfficientNetb1(nn.Module):
+    def __init__(self, num_classes=18):
+        super(EfficientNetb1, self).__init__()
+        self.efficientnet_model = timm.create_model('efficientnet_b1', pretrained=True, num_classes=num_classes)
+    
+    def forward(self, x):
+        x = self.efficientnet_model(x)
+        return x
+
+class EfficientNetb2(nn.Module):
+    def __init__(self, num_classes=18):
+        super(EfficientNetb2, self).__init__()
+        self.efficientnet_model = timm.create_model('efficientnet_b2', pretrained=True, num_classes=num_classes, drop_rate=0.2)
+    
+    def forward(self, x):
+        x = self.efficientnet_model(x)
+        return x
+
+class EfficientNetb3(nn.Module):
+    def __init__(self, num_classes=18):
+        super(EfficientNetb3, self).__init__()
+        self.efficientnet_model = timm.create_model('efficientnet_b3', pretrained=True, num_classes=num_classes, drop_rate=0.4)
+    
+    def forward(self, x):
+        x = self.efficientnet_model(x)
+        return x
+    
+
+class EfficientNetb4(nn.Module):
+    def __init__(self, num_classes=18):
+        super(EfficientNetb4, self).__init__()
+        self.efficientnet_model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=num_classes)
+    
+    def forward(self, x):
+        x = self.efficientnet_model(x)
+        return x
+
+class EfficientNetV2_M(nn.Module):
+    def __init__(self, num_classes=18):
+        super(EfficientNetV2_M, self).__init__()
+        self.efficientnet_model = timm.create_model('efficientnetv2_m', pretrained=True, num_classes=num_classes)
+    
+    def forward(self, x):
+        x = self.efficientnet_model(x)
+        return x
+
+
+class VitB(nn.Module):
+    def __init__(self, num_classes=18):
+        super(VitB, self).__init__()
+        self.vit_model = timm.models.vit_base_patch16_224(pretrained=True, num_classes=num_classes)
+    
+    def forward(self, x):
+        x = self.vit_model(x)
+        return x
+        
 if __name__ == "__main__":
     print("파라미터 갯수 출력")
     print("Resnet 101 Spinal FC : " , sum([param.numel() for param in ResNetSpinalFc(18).parameters() if param.requires_grad]))
-    print("ResNext : " , sum([param.numel() for param in ResNext(18).parameters() if param.requires_grad]))
+    print("ResNext : " , sum([param.numel() for param in ResNext101(18).parameters() if param.requires_grad]))
     print("Resnet34 : " , sum([param.numel() for param in Resnet34(18).parameters() if param.requires_grad]))
     print("MobileNetV2 : " , sum([param.numel() for param in MobileNetV2(18).parameters() if param.requires_grad]))
     print(DenseNet201(18))

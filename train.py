@@ -122,6 +122,7 @@ def train(data_dir, model_dir, args):
         train_set,
         batch_size=args.batch_size,
         num_workers=multiprocessing.cpu_count() // 2,
+        #num_workers=0,
         shuffle=True,
         pin_memory=use_cuda,
         drop_last=True,
@@ -131,6 +132,7 @@ def train(data_dir, model_dir, args):
         val_set,
         batch_size=args.valid_batch_size,
         num_workers=multiprocessing.cpu_count() // 2,
+        #num_workers=0,
         shuffle=False,
         pin_memory=use_cuda,
         drop_last=True,
@@ -152,7 +154,7 @@ def train(data_dir, model_dir, args):
         weight_decay=5e-4
     )
     scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
-    #scheduler = ReduceLROnPlateau(optimizer, mode='min', float=0.1, patience=5)
+    # scheduler = ReduceLROnPlateau(optimizer)
 
     # -- logging
     logger = SummaryWriter(log_dir=save_dir)
@@ -233,11 +235,14 @@ def train(data_dir, model_dir, args):
 
             val_loss = np.sum(val_loss_items) / len(val_loader)
             val_acc = np.sum(val_acc_items) / len(val_set)
-            best_val_loss = min(best_val_loss, val_loss)
-            if val_acc > best_val_acc:
-                print(f"New best model for val accuracy : {val_acc:4.2%}! saving the best model..")
+            best_val_acc = max(best_val_acc, val_acc)
+            # if val_acc > best_val_acc:
+            if val_loss < best_val_loss:
+                # print(f"New best model for val accuracy : {val_acc:4.2%}! saving the best model..")
+                print(f"New best model for val loss : {val_loss:4.2%}! saving the best model..")
                 torch.save(model.module.state_dict(), f"{save_dir}/best.pth")
-                best_val_acc = val_acc
+                # best_val_acc = val_acc
+                best_val_loss = val_loss
             torch.save(model.module.state_dict(), f"{save_dir}/last.pth")
             print(
                 f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
@@ -259,7 +264,8 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 1)')
     parser.add_argument('--dataset', type=str, default='MaskBaseDataset', help='dataset augmentation type (default: MaskBaseDataset)')
     parser.add_argument('--augmentation', type=str, default='BaseAugmentation', help='data augmentation type (default: BaseAugmentation)')
-    parser.add_argument("--resize", nargs="+", type=int, default=[128, 96], help='resize size for image when training')
+    # 비율 3:4 유지하며 resize
+    parser.add_argument("--resize", nargs="+", type=int, default=[224, 224], help='resize size for image when training')
     parser.add_argument('--batch_size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--valid_batch_size', type=int, default=1000, help='input batch size for validing (default: 1000)')
     parser.add_argument('--model', type=str, default='BaseModel', help='model type (default: BaseModel)')

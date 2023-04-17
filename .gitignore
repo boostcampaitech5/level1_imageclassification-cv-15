@@ -1,5 +1,6 @@
 __pycache__/
 
-*.ipynb
+sample.ipynb
 model/
 wandb/
+output*/

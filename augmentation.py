@@ -1,12 +1,13 @@
 from albumentations.pytorch.transforms import ToTensorV2
 from albumentations import (
     HorizontalFlip, VerticalFlip, IAAPerspective, ShiftScaleRotate, CLAHE, RandomRotate90,Rotate,
-    Transpose, ShiftScaleRotate, Blur, OpticalDistortion, GridDistortion, HueSaturationValue,
+    Transpose, ShiftScaleRotate, Blur, OpticalDistortion, GridDistortion, HueSaturationValue,Sharpen,
     IAAAdditiveGaussianNoise, GaussNoise, MotionBlur, MedianBlur, IAAPiecewiseAffine, RandomResizedCrop,
     IAASharpen, IAAEmboss, RandomBrightnessContrast, Flip, OneOf, Compose, Normalize, Cutout, ToGray, CoarseDropout, ShiftScaleRotate, CenterCrop, Resize
 )
 # from torchvision.transforms import Resize, ToTensor, Normalize, Compose, CenterCrop, ColorJitter, Grayscale, RandomHorizontalFlip
 from PIL import Image
+import torchvision.transforms as transforms
 import torch
 import cv2
 
@@ -26,7 +27,7 @@ class BaseAugmentationJ1:
         self.transform = Compose([
             Resize(*resize),
             Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
-            Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_REPLICATE),
+            # Sharpen(),
             ToTensorV2(),
         ])
 

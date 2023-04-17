@@ -257,10 +257,10 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
 class TestDataset(Dataset):
     def __init__(self, img_paths, resize, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246)):
         self.img_paths = img_paths
-        self.transform = augmentation.BaseAugmentation()
+        self.transform = augmentation.BaseAugmentation(resize, mean, std)
 
     def __getitem__(self, index):
-        img = cv2.imread(self.image_paths[index], cv2.IMREAD_COLOR)
+        img = cv2.imread(self.img_paths[index], cv2.IMREAD_COLOR)
         image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.uint8)
         # image = Image.open(self.img_paths[index])
 

@@ -3,7 +3,7 @@ from albumentations import (
     HorizontalFlip, VerticalFlip, IAAPerspective, ShiftScaleRotate, CLAHE, RandomRotate90,
     Transpose, ShiftScaleRotate, Blur, OpticalDistortion, GridDistortion, HueSaturationValue,
     IAAAdditiveGaussianNoise, GaussNoise, MotionBlur, MedianBlur, IAAPiecewiseAffine, RandomResizedCrop,
-    IAASharpen, IAAEmboss, RandomBrightnessContrast, Flip, OneOf, Compose, Normalize, Cutout, CoarseDropout, ShiftScaleRotate, CenterCrop, Resize
+    IAASharpen, IAAEmboss, RandomBrightnessContrast, Flip, OneOf, Compose, Normalize, Cutout, ToGray, CoarseDropout, ShiftScaleRotate, CenterCrop, Resize
 )
 # from torchvision.transforms import Resize, ToTensor, Normalize, Compose, CenterCrop, ColorJitter, Grayscale, RandomHorizontalFlip
 from PIL import Image
@@ -14,6 +14,7 @@ class BaseAugmentation:
         self.transform = Compose([
             Resize(*resize),
             Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            ToGray(True),
             ToTensorV2(),
         ])
 

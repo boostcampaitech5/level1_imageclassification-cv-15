@@ -18,7 +18,7 @@ from easydict import EasyDict
 from dataset import MaskBaseDataset
 from loss import create_criterion
 import wandb
-from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
+#from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -170,8 +170,8 @@ def train(data_dir, model_dir, args):
             lr=args.lr,
             weight_decay=5e-4
         )
-    #scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+    scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    # scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
     # scheduler = get_cosine_schedule_with_warmup(optimizer,
     #                                             num_warmup_steps=int(len(train_set)/args.batch_size/10),
     #                                             num_training_steps=int(len(train_set) * args.epochs /args.batch_size))
@@ -222,7 +222,7 @@ def train(data_dir, model_dir, args):
                 if args.wandb:
                     wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss}})
 
-        # scheduler.step()
+        scheduler.step()
         ed = time.time()
         print(f"training time : {(ed - st):.4f}s")
 
@@ -272,7 +272,7 @@ def train(data_dir, model_dir, args):
             if args.wandb:
                 wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss}, 
                            "valid_examples" : wandb.Image(figure_to_array(figure), caption="valid images")})
-            scheduler.step(val_loss)
+        #    scheduler.step(val_loss)
             print()
 
 

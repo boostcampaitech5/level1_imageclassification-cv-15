@@ -170,8 +170,8 @@ def train(s, model_dir, args):
             lr=args.lr,
             weight_decay=5e-4
         )
-    #scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+    scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    # scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
     # scheduler = get_cosine_schedule_with_warmup(optimizer,
     #                                             num_warmup_steps=int(len(train_set)/args.batch_size/10),
     #                                             num_training_steps=int(len(train_set) * args.epochs /args.batch_size))

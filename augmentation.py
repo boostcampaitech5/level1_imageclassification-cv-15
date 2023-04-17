@@ -95,7 +95,7 @@ class BaseAugmentationV2:
         self.transform = Compose([
             Resize(*resize),
             Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
-            Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_WRAP),
+            Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_CONSTANT),
             ToTensorV2(),
         ])
 
@@ -107,7 +107,99 @@ class BaseAugmentationV3:
         self.transform = Compose([
             Resize(*resize),
             Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
-            RandomBrightnessContrast(brightness_limit=(-0.3, 0.3), contrast_limit=(-0.3, 0.3), p=0.5),
+            RandomBrightnessContrast(brightness_limit=0, contrast_limit=(-0.3, 0.3), p=0.5),
+            ToTensorV2(),
+        ])
+
+    def __call__(self, image):
+        return self.transform(image=image)
+
+class BaseAugmentationV12:
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose([
+            Resize(*resize),
+            Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            HorizontalFlip(p=0.5),
+            Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_CONSTANT),
+            ToTensorV2(),
+        ])
+
+    def __call__(self, image):
+        return self.transform(image=image)
+    
+class BaseAugmentationV21:
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose([
+            Resize(*resize),
+            Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_CONSTANT),
+            HorizontalFlip(p=0.5),
+            ToTensorV2(),
+        ])
+
+    def __call__(self, image):
+        return self.transform(image=image)
+
+class BaseAugmentationV13:
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose([
+            Resize(*resize),
+            Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            HorizontalFlip(p=0.5),
+            RandomBrightnessContrast(brightness_limit=0, contrast_limit=(-0.3, 0.3), p=0.5),
+            ToTensorV2(),
+        ])
+
+    def __call__(self, image):
+        return self.transform(image=image)
+
+class BaseAugmentationV31:
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose([
+            Resize(*resize),
+            Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            RandomBrightnessContrast(brightness_limit=0, contrast_limit=(-0.3, 0.3), p=0.5),
+            HorizontalFlip(p=0.5),
+            ToTensorV2(),
+        ])
+
+    def __call__(self, image):
+        return self.transform(image=image)
+
+class BaseAugmentationV23:
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose([
+            Resize(*resize),
+            Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_CONSTANT),
+            RandomBrightnessContrast(brightness_limit=0, contrast_limit=(-0.3, 0.3), p=0.5),
+            ToTensorV2(),
+        ])
+
+    def __call__(self, image):
+        return self.transform(image=image)
+
+class BaseAugmentationV32:
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose([
+            Resize(*resize),
+            Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            RandomBrightnessContrast(brightness_limit=0, contrast_limit=(-0.3, 0.3), p=0.5),
+            Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_CONSTANT),
+            ToTensorV2(),
+        ])
+
+    def __call__(self, image):
+        return self.transform(image=image)
+
+class BaseAugmentationV213:
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose([
+            Resize(*resize),
+            Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_CONSTANT),
+            HorizontalFlip(p=0.5),
+            RandomBrightnessContrast(brightness_limit=0, contrast_limit=(-0.3, 0.3), p=0.5),
             ToTensorV2(),
         ])
 

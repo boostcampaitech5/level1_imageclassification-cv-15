@@ -14,7 +14,6 @@ class BaseAugmentation:
         self.transform = Compose([
             Resize(*resize),
             Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
-            ToGray(True),
             ToTensorV2(),
         ])
 

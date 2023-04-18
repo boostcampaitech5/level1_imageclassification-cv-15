@@ -2,7 +2,7 @@
     "seed": 42,
     "epochs": 30,
     "dataset": "MaskBaseDataset",
-    "augmentation": "BaseAugmentationV213",
+    "augmentation": "BaseAugmentation",
     "resize": [
         200,
         200
@@ -10,13 +10,13 @@
     "batch_size": 64,
     "valid_batch_size": 512,
     "model": "MobileNetV2",
-    "optimizer": "Adam",
+    "optimizer": "AdamW",
     "lr": 0.001,
     "val_ratio": 0.2,
     "criterion": "f1",
     "lr_decay_step": 10,
     "log_interval": 20,
-    "name": "km_MobileNetV2_stepLR_baseaugV213_resize_normalize_rotate_horizontalflip_randomcontrast",
+    "name": "km_basemodel_rotate_adamW_f1_6_ls_4_loss=loss_update",
     "wandb": true,
     "data_dir": "/opt/ml/level1_imageclassification-cv-15/input_crop/data/train/images",
     "model_dir": "./model"

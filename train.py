@@ -160,16 +160,17 @@ def train(data_dir, model_dir, args):
 
     # -- loss & metric
     criterion = create_criterion(args.criterion)  # default: cross_entropy
-
-    if args.optimizer == "AdamW":
-        optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
-    else:
-        opt_module = getattr(import_module("torch.optim"), args.optimizer)  # default: SGD
-        optimizer = opt_module(
-            filter(lambda p: p.requires_grad, model.parameters()),
-            lr=args.lr,
-            weight_decay=5e-4
-        )
+    f1_loss = create_criterion('f1')
+    focal_loss = create_criterion('focal')
+    lm_loss = create_criterion('label_smoothing')
+    
+    opt_module = getattr(import_module("torch.optim"), args.optimizer)  # default: SGD
+    optimizer = opt_module(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=args.lr,
+        weight_decay=5e-4
+    )
+    
     scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
     # scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
     # scheduler = get_cosine_schedule_with_warmup(optimizer,
@@ -199,7 +200,7 @@ def train(data_dir, model_dir, args):
 
             outs = model(inputs)
             preds = torch.argmax(outs, dim=-1)
-            loss = criterion(outs, labels)
+            loss = f1_loss(outs, labels) * 0.6 + lm_loss(outs, labels) * 0.4 # + focal_loss(outs, labels) * 0.15
 
             loss.backward()
             optimizer.step()

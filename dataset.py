@@ -56,12 +56,12 @@ class CustomAugmentation:
         self.transform = Compose([
             # CenterCrop((384, 384)),
             Resize(resize, Image.BILINEAR),
-            ColorJitter(0.1, 0.1, 0.1, 0.1),
-            RandomRotation(15),
-            RandomHorizontalFlip(),
+            # ColorJitter(0.1, 0.1, 0.1, 0.1),
+            RandomHorizontalFlip(p=0.3),
+            RandomRotation(10),
             ToTensor(),
             Normalize(mean=mean, std=std),
-            AddGaussianNoise()
+            # AddGaussianNoise()
         ])
 
     def __call__(self, image):

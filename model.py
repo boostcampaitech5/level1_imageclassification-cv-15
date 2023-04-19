@@ -221,7 +221,7 @@ class EfficientNetb2(nn.Module):
 class EfficientNetb3(nn.Module):
     def __init__(self, num_classes=18):
         super(EfficientNetb3, self).__init__()
-        self.efficientnet_model = timm.create_model('efficientnet_b3', pretrained=True, num_classes=num_classes, drop_rate=0.4)
+        self.efficientnet_model = timm.create_model('efficientnet_b3', pretrained=True, num_classes=num_classes, drop_rate=0.2)
     
     def forward(self, x):
         x = self.efficientnet_model(x)
@@ -231,7 +231,7 @@ class EfficientNetb3(nn.Module):
 class EfficientNetb4(nn.Module):
     def __init__(self, num_classes=18):
         super(EfficientNetb4, self).__init__()
-        self.efficientnet_model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=num_classes)
+        self.efficientnet_model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=num_classes, drop_rate=0.2)
     
     def forward(self, x):
         x = self.efficientnet_model(x)

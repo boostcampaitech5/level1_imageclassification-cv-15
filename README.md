@@ -11,10 +11,26 @@
 
 ## News
 
+**`2023-04-18` -  loss, optimizer Test**: 
+- loss
+  - before : f1 loss
+  - ater : f1 loss * 1.5 + label smoothing loss * 1.0
+- task change
+  - before : 18 single labels
+  - after : 3, 2, 3 multi labels
+- optimizer : AdamW
+
+**`2023-04-17` -  Augmentation Test**: 
+- Augmentation Setting : RandomRotation -15 ~ 15
+- face crop preprocessing
+- test epoch : 30
+- lr step : 10
+
+
 **`2023-04-14` -  Model Performance Test**: 
-- Final Model : MobileNetV2 (0.8 F1 - Score)
+- Final Model : ConvNext, MobileNet (For Fast Experiment)
 - cross_entropy_loss -> F1-Loss
-- optimizer Adam 고정
+- optimizer Adam
 - lr step : 4
 
 **`2023-04-13` - 강나훈**: 

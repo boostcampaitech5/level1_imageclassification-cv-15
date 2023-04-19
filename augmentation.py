@@ -16,6 +16,7 @@ class BaseAugmentation:
         self.transform = Compose([
             Resize(*resize),
             Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            Rotate(limit=15,p=0.5,border_mode = cv2.BORDER_CONSTANT),
             ToTensorV2(),
         ])
 
@@ -27,6 +28,7 @@ class BaseAugmentationJ1:
         self.transform = Compose([
             Resize(*resize),
             Normalize(mean=mean, std=std, max_pixel_value=255.0, p=1.0),
+            Rotate(limit=15,p=0.5,border_mode = cv2.BORDER_CONSTANT),
             # Sharpen(),
             ToTensorV2(),
         ])

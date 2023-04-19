@@ -18,7 +18,7 @@ from easydict import EasyDict
 from dataset import MaskBaseDataset
 from loss import create_criterion
 import wandb
-# from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
+from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -160,6 +160,11 @@ def train(s, model_dir, args):
 
     # -- loss & metric
     criterion = create_criterion(args.criterion)  # default: cross_entropy
+    f1_criterion = create_criterion('f1')
+    focal_criterion = create_criterion('focal')
+    entropy_criterion = create_criterion('cross_entropy')
+    ls_criterion = create_criterion('label_smoothing')
+
 
     if args.optimizer == "AdamW":
         optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
@@ -199,7 +204,13 @@ def train(s, model_dir, args):
 
             outs = model(inputs)
             preds = torch.argmax(outs, dim=-1)
-            loss = criterion(outs, labels)
+            # loss_update = f1_criterion(outs, labels) * 0.6 + focal_criterion(outs, labels) *0.2 + ls_criterion(outs, labels) *0.2
+            loss_update = f1_criterion(outs, labels) * 0.6 + ls_criterion(outs, labels) *0.4
+            # loss_update = f1_criterion(outs, labels)
+
+            loss = loss_update
+            # loss = criterion(outs, labels)
+            # f1_criterion,focal_criterion,entropy_criterion,ls_criterion
 
             loss.backward()
             optimizer.step()

@@ -3,7 +3,7 @@ import random
 from collections import defaultdict
 from enum import Enum
 from typing import Tuple, List
-
+from imblearn.over_sampling import SMOTE
 import numpy as np
 import torch
 from PIL import Image
@@ -12,7 +12,7 @@ from torchvision.transforms import Resize, ToTensor, Normalize, Compose, CenterC
 import augmentation
 import cv2
 
-
+#"data_dir": "/opt/ml/level1/input_crop/data/train/images", #nahoon data
 IMG_EXTENSIONS = [
     ".jpg", ".JPG", ".jpeg", ".JPEG", ".png",
     ".PNG", ".ppm", ".PPM", ".bmp", ".BMP",
@@ -57,7 +57,7 @@ class AgeLabels(int, Enum):
 
         if value < 30:
             return cls.YOUNG
-        elif value < 60:
+        elif value < 59:
             return cls.MIDDLE
         else:
             return cls.OLD
@@ -212,7 +212,6 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
     def _split_profile(profiles, val_ratio):
         length = len(profiles)
         n_val = int(length * val_ratio)
-
         val_indices = set(random.sample(range(length), k=n_val))
         train_indices = set(range(length)) - val_indices
         return {

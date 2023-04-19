@@ -4,3 +4,4 @@ sample.ipynb
 model/
 wandb/
 output*/
+input_crop_square/

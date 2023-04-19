@@ -10,6 +10,7 @@ from PIL import Image
 from torch.utils.data import Dataset, Subset, random_split
 from torchvision.transforms import Resize, ToTensor, Normalize, Compose, CenterCrop, ColorJitter, Grayscale, RandomHorizontalFlip
 import augmentation
+from sklearn.model_selection import train_test_split
 import cv2
 
 
@@ -80,8 +81,9 @@ class MaskBaseDataset(Dataset):
     mask_labels = []
     gender_labels = []
     age_labels = []
+    multi_class_label = []
 
-    def __init__(self, data_dir, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246), val_ratio=0.2):
+    def __init__(self, data_dir, mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246), val_ratio=0.2, multi_label=False):
         self.data_dir = data_dir
         self.mean = mean
         self.std = std
@@ -90,6 +92,8 @@ class MaskBaseDataset(Dataset):
         self.transform = None
         self.setup()
         self.calc_statistics()
+        # self.label_weights = torch.from_numpy(np.array([ 1. / self.multi_class_label.count(label) 
+        #                       for label in self.multi_class_label]))
 
     def setup(self):
         profiles = os.listdir(self.data_dir)
@@ -114,6 +118,7 @@ class MaskBaseDataset(Dataset):
                 self.mask_labels.append(mask_label)
                 self.gender_labels.append(gender_label)
                 self.age_labels.append(age_label)
+                self.multi_class_label.append(self.encode_multi_class(mask_label, gender_label, age_label))
 
     def calc_statistics(self):
         has_statistics = self.mean is not None and self.std is not None
@@ -183,16 +188,31 @@ class MaskBaseDataset(Dataset):
         img_cp = np.clip(img_cp, 0, 255).astype(np.uint8)
         return img_cp
 
-    def split_dataset(self) -> Tuple[Subset, Subset]:
+    def split_dataset(self, stractified=True) -> Tuple[Subset, Subset]:
         """
         데이터셋을 train 과 val 로 나눕니다,
         pytorch 내부의 torch.utils.data.random_split 함수를 사용하여
         torch.utils.data.Subset 클래스 둘로 나눕니다.
         구현이 어렵지 않으니 구글링 혹은 IDE (e.g. pycharm) 의 navigation 기능을 통해 코드를 한 번 읽어보는 것을 추천드립니다^^
         """
-        n_val = int(len(self) * self.val_ratio)
-        n_train = len(self) - n_val
-        train_set, val_set = random_split(self, [n_train, n_val])
+        if stractified:
+            print("Stractified validation split...")
+            # Get labels and indices
+            labels = [self.multi_class_label[i] for i in range(len(self))]
+            indices = list(range(len(self)))
+            
+            # Stratified split of indices
+            train_indices, val_indices = train_test_split(indices, test_size=self.val_ratio, stratify=labels)
+            
+            # Create Subset for train and validation set
+            train_set = Subset(self, train_indices)
+            val_set = Subset(self, val_indices)
+        
+        else:
+            print("Random validation split...")
+            n_val = int(len(self) * self.val_ratio)
+            n_train = len(self) - n_val
+            train_set, val_set = random_split(self, [n_train, n_val])
         return train_set, val_set
 
 

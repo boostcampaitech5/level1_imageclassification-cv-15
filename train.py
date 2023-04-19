@@ -18,7 +18,7 @@ from easydict import EasyDict
 from dataset import MaskBaseDataset
 from loss import create_criterion
 import wandb
-from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
+from sklearn.metrics import f1_score
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -153,7 +153,8 @@ def train(data_dir, model_dir, args):
     dataset = dataset_module(
         data_dir=data_dir,
     )
-    num_classes = dataset.num_classes  # 18
+    # num_classes = dataset.num_classes  # 18
+    num_classes = 3 * 2 * 3 if not args.multi_label else 3 + 2 + 3
 
     # -- augmentation
     transform_module = getattr(import_module("augmentation"), args.augmentation)  # default: BaseAugmentation
@@ -165,7 +166,7 @@ def train(data_dir, model_dir, args):
     dataset.set_transform(transform)
 
     # -- data_loader
-    train_set, val_set = dataset.split_dataset()
+    train_set, val_set = dataset.split_dataset(args.split_stratified)
 
     train_loader = DataLoader(
         train_set,
@@ -194,18 +195,20 @@ def train(data_dir, model_dir, args):
 
     # -- loss & metric
     criterion = create_criterion(args.criterion)  # default: cross_entropy
+    lm_criterion = create_criterion('label_smoothing')
+    focal_criterion = create_criterion('focal')
+    f1_criterion = create_criterion('f1')
+    ce_criterion = create_criterion('cross_entropy')
 
-    if args.optimizer == "AdamW":
-        optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
-    else:
-        opt_module = getattr(import_module("torch.optim"), args.optimizer)  # default: SGD
-        optimizer = opt_module(
-            filter(lambda p: p.requires_grad, model.parameters()),
-            lr=args.lr,
-            weight_decay=5e-4
-        )
+
+    opt_module = getattr(import_module("torch.optim"), args.optimizer)  # default: SGD
+    optimizer = opt_module(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=args.lr,
+        weight_decay=5e-4)
+    
     scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
-    # scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+    # scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
     # scheduler = get_cosine_schedule_with_warmup(optimizer,
     #                                             num_warmup_steps=int(len(train_set)/args.batch_size/10),
     #                                             num_training_steps=int(len(train_set) * args.epochs /args.batch_size))
@@ -218,12 +221,14 @@ def train(data_dir, model_dir, args):
 
     best_val_acc = 0
     best_val_loss = np.inf
+    best_f1_score = 0
     for epoch in range(args.epochs):
         # train loop
         st = time.time()
         model.train()
         loss_value = 0
         matches = 0
+        f1_value = 0
         for idx, train_batch in enumerate(train_loader):
             inputs, labels = train_batch
             inputs = inputs.to(device)
@@ -243,31 +248,52 @@ def train(data_dir, model_dir, args):
             if mix_decision < args.mix_prob:
                 loss = criterion(outs, mix_labels[0]) * mix_labels[2] + criterion(outs, mix_labels[1]) * (1 - mix_labels[2])
             else:
-                loss = criterion(outs, labels)
-
-            preds = torch.argmax(outs, dim=-1)
+                if args.multi_label:
+                    (mask_outs, gender_outs, age_outs) = torch.split(outs, [3, 2, 3], dim=1)
+                    mask_labels, gender_labels, age_labels = MaskBaseDataset.decode_multi_class(labels)
+                    mask_loss = ce_criterion(mask_outs, mask_labels)
+                    gender_loss = ce_criterion(gender_outs, gender_labels)
+                    age_loss = f1_criterion(age_outs, age_labels) * 1.5 + lm_criterion(age_outs, age_labels)
+                    # mask_loss /= (mask_loss.item() + gender_loss.item() + age_loss.item())
+                    # gender_loss /= (mask_loss.item() + gender_loss.item() + age_loss.item())
+                    # age_loss /= (mask_loss.item() + gender_loss.item() + age_loss.item())
+                    loss = mask_loss + gender_loss + age_loss
+                    preds = MaskBaseDataset.encode_multi_class(torch.argmax(mask_outs, -1),
+                                                               torch.argmax(gender_outs, -1),
+                                                               torch.argmax(age_outs, -1))
+    
+                else:
+                    loss = criterion(outs, labels)
+                    preds = torch.argmax(outs, dim=-1)
             # loss = criterion(outs, labels)
 
             loss.backward()
             optimizer.step()
 
+            f1_value += f1_score(labels.detach().cpu(), preds.detach().cpu(), average="macro")
             loss_value += loss.item()
             matches += (preds == labels).sum().item()
             if (idx + 1) % args.log_interval == 0:
                 train_loss = loss_value / args.log_interval
                 train_acc = matches / args.batch_size / args.log_interval
+                train_f1 = f1_value / args.log_interval
                 current_lr = get_lr(optimizer)
                 print(
                     f"Epoch[{epoch}/{args.epochs}]({idx + 1}/{len(train_loader)}) || "
-                    f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
+                    f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || training f1 {train_f1:4.2%} || lr {current_lr}"
                 )
                 logger.add_scalar("Train/loss", train_loss, epoch * len(train_loader) + idx)
                 logger.add_scalar("Train/accuracy", train_acc, epoch * len(train_loader) + idx)
 
                 loss_value = 0
                 matches = 0
+                f1_value = 0
+                if args.multi_label:
+                    print(f"mask loss {mask_loss:4.4} || gender loss {gender_loss:4.4} || age loss {age_loss:4.4}")                
                 if args.wandb:
-                    wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss}})
+                    wandb.log({"Train" : {"acc" : train_acc, "loss" : train_loss, "f1_score" : train_f1}})
+                    if args.multi_label:
+                        wandb.log({"Train" : {"mask loss" : mask_loss, "gender_loss" : gender_loss, "age_loss" : age_loss}})
 
         scheduler.step()
         ed = time.time()
@@ -278,7 +304,11 @@ def train(data_dir, model_dir, args):
             print("Calculating validation results...")
             model.eval()
             val_loss_items = []
+            val_mask_loss_items = []
+            val_gender_loss_items = []
+            val_age_loss_items = []
             val_acc_items = []
+            val_f1_scores = []
             figure = None
             for val_batch in val_loader:
                 inputs, labels = val_batch
@@ -286,12 +316,32 @@ def train(data_dir, model_dir, args):
                 labels = labels.to(device)
 
                 outs = model(inputs)
-                preds = torch.argmax(outs, dim=-1)
-
-                loss_item = criterion(outs, labels).item()
+                if args.multi_label:
+                    (mask_outs, gender_outs, age_outs) = torch.split(outs, [3, 2, 3], dim=1)
+                    mask_labels, gender_labels, age_labels = MaskBaseDataset.decode_multi_class(labels)
+                    mask_loss = ce_criterion(mask_outs, mask_labels).item()
+                    gender_loss = ce_criterion(gender_outs, gender_labels).item()
+                    age_loss = (f1_criterion(age_outs, age_labels) * 1.5 + lm_criterion(age_outs, age_labels)).item()
+                    # mask_loss /= (mask_loss + gender_loss + age_loss)
+                    # gender_loss /= (mask_loss + gender_loss + age_loss)
+                    # age_loss /= (mask_loss + gender_loss + age_loss)
+                    loss_item = mask_loss + gender_loss + age_loss
+                    preds = MaskBaseDataset.encode_multi_class(torch.argmax(mask_outs, -1),
+                                                               torch.argmax(gender_outs, -1),
+                                                               torch.argmax(age_outs, -1))
+                else:              
+                    loss_item = criterion(outs, labels).item()
+                    preds = torch.argmax(outs, dim=-1)
                 acc_item = (labels == preds).sum().item()
+
+                f1 = f1_score(labels.detach().cpu(), preds.detach().cpu(), average="macro")
+                val_f1_scores.append(f1)
                 val_loss_items.append(loss_item)
                 val_acc_items.append(acc_item)
+                if args.multi_label:
+                    val_mask_loss_items.append(mask_loss)
+                    val_gender_loss_items.append(gender_loss)
+                    val_age_loss_items.append(age_loss)
 
                 if figure is None:
                     inputs_np = torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
@@ -301,24 +351,34 @@ def train(data_dir, model_dir, args):
                     )
 
             val_loss = np.sum(val_loss_items) / len(val_loader)
+            val_f1_score = np.sum(val_f1_scores) / len(val_loader)
+            if args.multi_label:
+                val_mask_loss = np.sum(val_mask_loss_items) / len(val_loader)
+                val_gender_loss = np.sum(val_gender_loss_items) / len(val_loader)
+                val_age_loss = np.sum(val_age_loss_items) / len(val_loader)
             val_acc = np.sum(val_acc_items) / len(val_set)
             # best_val_loss = min(best_val_loss, val_loss)
             best_val_acc = max(best_val_acc, val_acc)
+            best_f1_score = max(best_f1_score, val_f1_score)
             if val_loss < best_val_loss:
                 print(f"New best model for val loss : {val_loss:4.2%}! saving the best model..")
                 torch.save(model.module.state_dict(), f"{save_dir}/best.pth")
                 best_val_loss = val_loss
             torch.save(model.module.state_dict(), f"{save_dir}/last.pth")
             print(
-                f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
-                f"best acc : {best_val_acc:4.2%}, best loss: {best_val_loss:4.2}"
+                f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2}, f1: {val_f1_score:4.2%}|| "
+                f"best acc : {best_val_acc:4.2%}, best loss: {best_val_loss:4.2}, best f1 : {best_f1_score:4.2%}"
             )
             logger.add_scalar("Val/loss", val_loss, epoch)
             logger.add_scalar("Val/accuracy", val_acc, epoch)
             logger.add_figure("results", figure, epoch)
+            if args.multi_label:
+                print(f"[Val] mask loss {val_mask_loss:4.4} || gender loss {val_gender_loss:4.4} || age loss {val_age_loss:4.4}")            
             if args.wandb:
-                wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss}, 
+                wandb.log({"Valid" : {"acc" : val_acc, "loss" : val_loss, "f1_score" : val_f1_score}, 
                            "valid_examples" : wandb.Image(figure_to_array(figure), caption="valid images")})
+                if args.multi_label:
+                    wandb.log({"Valid" : {"mask loss" : mask_loss, "gender_loss" : gender_loss, "age_loss" : age_loss}})                
             # scheduler.step(val_loss)
             print()
 

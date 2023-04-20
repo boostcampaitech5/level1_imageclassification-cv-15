@@ -23,24 +23,31 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import f1_score, confusion_matrix
 from dataset import TestDataset
 import pandas as pd
-from util import (seed_everything, increment_path,
-                  cutmix, get_lr, grid_image, figure_to_array, read_json, plot_confusion_matrix)
+from util import (
+    seed_everything,
+    increment_path,
+    cutmix,
+    get_lr,
+    grid_image,
+    figure_to_array,
+    read_json,
+    plot_confusion_matrix,
+)
+
 
 def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
-    train_set = torch.utils.data.Subset(dataset,
-                                        indices=train_idx)
+    train_set = torch.utils.data.Subset(dataset, indices=train_idx)
     # 인자로 전달받은 dataset에서 valid_idx에 해당하는 Subset 추출
-    val_set   = torch.utils.data.Subset(dataset,
-                                        indices=valid_idx)
-    
+    val_set = torch.utils.data.Subset(dataset, indices=valid_idx)
+
     # 추출된 Train Subset으로 DataLoader 생성
     train_loader = torch.utils.data.DataLoader(
         train_set,
         batch_size=batch_size,
         num_workers=num_workers,
         drop_last=True,
-        shuffle=True
+        shuffle=True,
     )
     # 추출된 Valid Subset으로 DataLoader 생성
     val_loader = torch.utils.data.DataLoader(
@@ -48,11 +55,12 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
         batch_size=batch_size,
         num_workers=num_workers,
         drop_last=True,
-        shuffle=False
+        shuffle=False,
     )
-    
+
     # 생성한 DataLoader 반환
     return train_loader, val_loader
+
 
 def train(data_dir, model_dir, args):
     seed_everything(args.seed)
@@ -61,7 +69,7 @@ def train(data_dir, model_dir, args):
         wandb.init(
             # set the wandb project where this run will be logged
             project="level1_be1",
-            config=vars(args)
+            config=vars(args),
         )
         wandb.run.name = args.name
         wandb.run.save()
@@ -73,7 +81,9 @@ def train(data_dir, model_dir, args):
     device = torch.device("cuda" if use_cuda else "cpu")
 
     # -- dataset
-    dataset_module = getattr(import_module("dataset"), args.dataset)  # default: MaskBaseDataset
+    dataset_module = getattr(
+        import_module("dataset"), args.dataset
+    )  # default: MaskBaseDataset
     dataset = dataset_module(
         data_dir=data_dir,
     )
@@ -81,7 +91,9 @@ def train(data_dir, model_dir, args):
     num_classes = 3 * 2 * 3 if not args.multi_label else 3 + 2 + 3
 
     # -- augmentation
-    transform_module = getattr(import_module("augmentation"), args.augmentation)  # default: BaseAugmentation
+    transform_module = getattr(
+        import_module("augmentation"), args.augmentation
+    )  # default: BaseAugmentation
     transform = transform_module(
         resize=args.resize,
         mean=dataset.mean,
@@ -94,56 +106,67 @@ def train(data_dir, model_dir, args):
 
     # -- loss & metric
     criterion = create_criterion(args.criterion)  # default: cross_entropy
-    lm_criterion = create_criterion('label_smoothing')
-    focal_criterion = create_criterion('focal')
-    f1_criterion = create_criterion('f1')
-    ce_criterion = create_criterion('cross_entropy')
+    lm_criterion = create_criterion("label_smoothing")
+    focal_criterion = create_criterion("focal")
+    f1_criterion = create_criterion("f1")
+    ce_criterion = create_criterion("cross_entropy")
 
     # -- logging
     logger = SummaryWriter(log_dir=save_dir)
-    with open(os.path.join(save_dir, 'config.json'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(save_dir, "config.json"), "w", encoding="utf-8") as f:
         json.dump(vars(args), f, ensure_ascii=False, indent=4)
-    
+
     skf = StratifiedKFold(n_splits=args.n_splits)
     patience = 10
-    labels = [dataset.encode_multi_class(mask, gender, age) for mask, gender, age in zip(dataset.mask_labels, dataset.gender_labels, dataset.age_labels)]
+    labels = [
+        dataset.encode_multi_class(mask, gender, age)
+        for mask, gender, age in zip(
+            dataset.mask_labels, dataset.gender_labels, dataset.age_labels
+        )
+    ]
 
-
-    submission = pd.read_csv(os.path.join(args.test_img_root, 'info.csv'))
-    image_dir = os.path.join(args.test_img_root, 'images')
+    submission = pd.read_csv(os.path.join(args.test_img_root, "info.csv"))
+    image_dir = os.path.join(args.test_img_root, "images")
 
     # Test Dataset 클래스 객체를 생성하고 DataLoader를 만듭니다.
     image_paths = [os.path.join(image_dir, img_id) for img_id in submission.ImageID]
     test_dataset = TestDataset(image_paths, resize=args.resize)
 
-    test_loader = DataLoader(
-        test_dataset,
-        shuffle=False
-    )    
+    test_loader = DataLoader(test_dataset, shuffle=False)
     oof_pred = None
 
     # Stratified KFold를 사용해 Train, Valid fold의 Index를 생성합니다.
-    # labels 변수에 담긴 클래스를 기준으로 Stratify를 진행합니다. 
+    # labels 변수에 담긴 클래스를 기준으로 Stratify를 진행합니다.
     for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
         # 생성한 Train, Valid Index를 getDataloader 함수에 전달해 train/valid DataLoader를 생성합니다.
-        # 생성한 train, valid DataLoader로 이전과 같이 모델 학습을 진행합니다. 
+        # 생성한 train, valid DataLoader로 이전과 같이 모델 학습을 진행합니다.
 
-        train_loader, val_loader = getDataloader(dataset, train_idx, valid_idx, args.batch_size, multiprocessing.cpu_count() // 2)
-        print(f"fold {i} || train images {len(train_loader) * args.batch_size} || valid images {len(val_loader) * args.batch_size}")
+        train_loader, val_loader = getDataloader(
+            dataset,
+            train_idx,
+            valid_idx,
+            args.batch_size,
+            multiprocessing.cpu_count() // 2,
+        )
+        print(
+            f"fold {i} || train images {len(train_loader) * args.batch_size} || valid images {len(val_loader) * args.batch_size}"
+        )
         model = model_module(num_classes=num_classes).to(device)
         # model = torch.nn.DataParallel(model)
-        opt_module = getattr(import_module("torch.optim"), args.optimizer)  # default: SGD
+        opt_module = getattr(
+            import_module("torch.optim"), args.optimizer
+        )  # default: SGD
         optimizer = opt_module(
             filter(lambda p: p.requires_grad, model.parameters()),
             lr=args.lr,
-            weight_decay=5e-4
+            weight_decay=5e-4,
         )
         best_val_acc = 0
         best_val_loss = np.inf
         best_val_f1 = 0
         counter = 0
-        scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)    
-                        
+        scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+
         for epoch in range(args.epochs):
             # train loop
             st = time.time()
@@ -158,32 +181,42 @@ def train(data_dir, model_dir, args):
 
                 optimizer.zero_grad()
                 # use mix or not
-                if args.cutmix and epoch < args.epochs-10: 
+                if args.cutmix and epoch < args.epochs - 10:
                     mix_decision = np.random.rand()
                     if mix_decision < args.mix_prob:
                         inputs, mix_labels = cutmix(inputs, labels, 1.0)
-                    else: 
+                    else:
                         pass
-                else: mix_decision = 1
+                else:
+                    mix_decision = 1
 
                 outs = model(inputs)
                 if mix_decision < args.mix_prob:
-                    loss = criterion(outs, mix_labels[0]) * mix_labels[2] + criterion(outs, mix_labels[1]) * (1 - mix_labels[2])
+                    loss = criterion(outs, mix_labels[0]) * mix_labels[2] + criterion(
+                        outs, mix_labels[1]
+                    ) * (1 - mix_labels[2])
                 else:
                     if args.multi_label:
-                        (mask_outs, gender_outs, age_outs) = torch.split(outs, [3, 2, 3], dim=1)
-                        mask_labels, gender_labels, age_labels = MaskBaseDataset.decode_multi_class(labels)
+                        (mask_outs, gender_outs, age_outs) = torch.split(
+                            outs, [3, 2, 3], dim=1
+                        )
+                        (
+                            mask_labels,
+                            gender_labels,
+                            age_labels,
+                        ) = MaskBaseDataset.decode_multi_class(labels)
                         mask_loss = ce_criterion(mask_outs, mask_labels)
                         gender_loss = ce_criterion(gender_outs, gender_labels)
-                        age_loss = f1_criterion(age_outs, age_labels) * 1.5 + lm_criterion(age_outs, age_labels)
-                        # mask_loss /= (mask_loss.item() + gender_loss.item() + age_loss.item())
-                        # gender_loss /= (mask_loss.item() + gender_loss.item() + age_loss.item())
-                        # age_loss /= (mask_loss.item() + gender_loss.item() + age_loss.item())
+                        age_loss = f1_criterion(
+                            age_outs, age_labels
+                        ) * 1.5 + lm_criterion(age_outs, age_labels)
                         loss = mask_loss + gender_loss + age_loss
-                        preds = MaskBaseDataset.encode_multi_class(torch.argmax(mask_outs, -1),
-                                                                torch.argmax(gender_outs, -1),
-                                                                torch.argmax(age_outs, -1))
-        
+                        preds = MaskBaseDataset.encode_multi_class(
+                            torch.argmax(mask_outs, -1),
+                            torch.argmax(gender_outs, -1),
+                            torch.argmax(age_outs, -1),
+                        )
+
                     else:
                         loss = criterion(outs, labels)
                         preds = torch.argmax(outs, dim=-1)
@@ -191,7 +224,9 @@ def train(data_dir, model_dir, args):
                 loss.backward()
                 optimizer.step()
 
-                f1_value += f1_score(labels.detach().cpu(), preds.detach().cpu(), average="macro")
+                f1_value += f1_score(
+                    labels.detach().cpu(), preds.detach().cpu(), average="macro"
+                )
                 loss_value += loss.item()
                 matches += (preds == labels).sum().item()
                 if (idx + 1) % args.log_interval == 0:
@@ -208,11 +243,29 @@ def train(data_dir, model_dir, args):
                     matches = 0
                     f1_value = 0
                     if args.multi_label:
-                        print(f"mask loss {mask_loss:4.4} || gender loss {gender_loss:4.4} || age loss {age_loss:4.4}")                
+                        print(
+                            f"mask loss {mask_loss:4.4} || gender loss {gender_loss:4.4} || age loss {age_loss:4.4}"
+                        )
                     if args.wandb:
-                        wandb.log({f"fold_{i}" : {"Train" : {"acc" : train_acc, "loss" : train_loss}}})
+                        wandb.log(
+                            {
+                                f"fold_{i}": {
+                                    "Train": {"acc": train_acc, "loss": train_loss}
+                                }
+                            }
+                        )
                         if args.multi_label:
-                            wandb.log({f"fold_{i}" : {"Train" : {"mask loss" : mask_loss, "gender_loss" : gender_loss, "age_loss" : age_loss}}})
+                            wandb.log(
+                                {
+                                    f"fold_{i}": {
+                                        "Train": {
+                                            "mask loss": mask_loss,
+                                            "gender_loss": gender_loss,
+                                            "age_loss": age_loss,
+                                        }
+                                    }
+                                }
+                            )
 
             scheduler.step()
             ed = time.time()
@@ -239,24 +292,34 @@ def train(data_dir, model_dir, args):
                     outs = model(inputs)
 
                     if args.multi_label:
-                        (mask_outs, gender_outs, age_outs) = torch.split(outs, [3, 2, 3], dim=1)
-                        mask_labels, gender_labels, age_labels = MaskBaseDataset.decode_multi_class(labels)
+                        (mask_outs, gender_outs, age_outs) = torch.split(
+                            outs, [3, 2, 3], dim=1
+                        )
+                        (
+                            mask_labels,
+                            gender_labels,
+                            age_labels,
+                        ) = MaskBaseDataset.decode_multi_class(labels)
                         mask_loss = ce_criterion(mask_outs, mask_labels).item()
                         gender_loss = ce_criterion(gender_outs, gender_labels).item()
-                        age_loss = (f1_criterion(age_outs, age_labels) * 1.5 + lm_criterion(age_outs, age_labels)).item()
-                        # mask_loss /= (mask_loss + gender_loss + age_loss)
-                        # gender_loss /= (mask_loss + gender_loss + age_loss)
-                        # age_loss /= (mask_loss + gender_loss + age_loss)
+                        age_loss = (
+                            f1_criterion(age_outs, age_labels) * 1.5
+                            + lm_criterion(age_outs, age_labels)
+                        ).item()
                         loss_item = mask_loss + gender_loss + age_loss
-                        preds = MaskBaseDataset.encode_multi_class(torch.argmax(mask_outs, -1),
-                                                                torch.argmax(gender_outs, -1),
-                                                                torch.argmax(age_outs, -1))
-                    else:              
+                        preds = MaskBaseDataset.encode_multi_class(
+                            torch.argmax(mask_outs, -1),
+                            torch.argmax(gender_outs, -1),
+                            torch.argmax(age_outs, -1),
+                        )
+                    else:
                         loss_item = criterion(outs, labels).item()
                         preds = torch.argmax(outs, dim=-1)
 
                     acc_item = (labels == preds).sum().item()
-                    f1 = f1_score(labels.detach().cpu(), preds.detach().cpu(), average="macro")
+                    f1 = f1_score(
+                        labels.detach().cpu(), preds.detach().cpu(), average="macro"
+                    )
                     val_f1_scores.append(f1)
                     val_loss_items.append(loss_item)
                     val_acc_items.append(acc_item)
@@ -265,7 +328,7 @@ def train(data_dir, model_dir, args):
                     if args.multi_label:
                         val_mask_loss_items.append(mask_loss)
                         val_gender_loss_items.append(gender_loss)
-                        val_age_loss_items.append(age_loss)                
+                        val_age_loss_items.append(age_loss)
                     # if figure is None:
                     #     inputs_np = torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
                     #     inputs_np = dataset_module.denormalize_image(inputs_np, dataset.mean, dataset.std)
@@ -273,23 +336,28 @@ def train(data_dir, model_dir, args):
                     #         inputs_np, labels, preds, n=16, shuffle=args.dataset != "MaskSplitByProfileDataset"
                     #     )
 
-
-                cm = confusion_matrix(np.concatenate(val_labels), np.concatenate(val_preds))
+                cm = confusion_matrix(
+                    np.concatenate(val_labels), np.concatenate(val_preds)
+                )
                 figure_cm = plot_confusion_matrix(cm)
                 val_loss = np.sum(val_loss_items) / len(val_loader)
                 val_f1_score = np.sum(val_f1_scores) / len(val_loader)
                 if args.multi_label:
                     val_mask_loss = np.sum(val_mask_loss_items) / len(val_loader)
                     val_gender_loss = np.sum(val_gender_loss_items) / len(val_loader)
-                    val_age_loss = np.sum(val_age_loss_items) / len(val_loader)                
+                    val_age_loss = np.sum(val_age_loss_items) / len(val_loader)
                 val_acc = np.sum(val_acc_items) / len(valid_idx)
 
                 # Callback1: validation accuracy가 향상될수록 모델을 저장합니다.
                 best_val_f1 = max(best_val_f1, val_f1_score)
-                best_val_acc = max(best_val_acc, val_acc)                
+                best_val_acc = max(best_val_acc, val_acc)
                 if val_loss < best_val_loss:
-                    print(f"New best model for val loss : {val_loss:4.4}! saving the model..")
-                    torch.save(model.state_dict(), os.path.join(save_dir, f"fold_{i}_best.pth"))
+                    print(
+                        f"New best model for val loss : {val_loss:4.4}! saving the model.."
+                    )
+                    torch.save(
+                        model.state_dict(), os.path.join(save_dir, f"fold_{i}_best.pth")
+                    )
                     best_val_loss = val_loss
                     counter = 0
                 else:
@@ -303,25 +371,62 @@ def train(data_dir, model_dir, args):
                     f"best acc : {best_val_acc:4.2%}, best loss: {best_val_loss:4.4}, best f1 : {best_val_f1:4.2%}"
                 )
                 if args.multi_label:
-                    print(f"[Val] mask loss {val_mask_loss:4.4} || gender loss {val_gender_loss:4.4} || age loss {val_age_loss:4.4}")                   
+                    print(
+                        f"[Val] mask loss {val_mask_loss:4.4} || gender loss {val_gender_loss:4.4} || age loss {val_age_loss:4.4}"
+                    )
                 if args.wandb:
-                    wandb.log({f"fold_{i}" : {"Valid" : {"acc" : val_acc, "loss" : val_loss, "f1_score" : val_f1_score}, 
-                            "valid_confusion_matrix" : wandb.Image(figure_to_array(figure_cm), caption="valid confusion matrix")}})
-                    wandb.log({f"fold_{i}" : {"Valid" : {"acc" : val_acc, "loss" : val_loss, "f1_score" : val_f1_score}}})                    
+                    wandb.log(
+                        {
+                            f"fold_{i}": {
+                                "Valid": {
+                                    "acc": val_acc,
+                                    "loss": val_loss,
+                                    "f1_score": val_f1_score,
+                                },
+                                "valid_confusion_matrix": wandb.Image(
+                                    figure_to_array(figure_cm),
+                                    caption="valid confusion matrix",
+                                ),
+                            }
+                        }
+                    )
+                    wandb.log(
+                        {
+                            f"fold_{i}": {
+                                "Valid": {
+                                    "acc": val_acc,
+                                    "loss": val_loss,
+                                    "f1_score": val_f1_score,
+                                }
+                            }
+                        }
+                    )
                     if args.multi_label:
-                        wandb.log({f"fold_{i}" : {"Valid" : {"mask loss" : mask_loss, "gender_loss" : gender_loss, "age_loss" : age_loss}}})                     
+                        wandb.log(
+                            {
+                                f"fold_{i}": {
+                                    "Valid": {
+                                        "mask loss": mask_loss,
+                                        "gender_loss": gender_loss,
+                                        "age_loss": age_loss,
+                                    }
+                                }
+                            }
+                        )
                 # scheduler.step(val_loss)
                 plt.close()
                 print()
-        # 각 fold에서 생성된 모델을 사용해 Test 데이터를 예측합니다. 
+        # 각 fold에서 생성된 모델을 사용해 Test 데이터를 예측합니다.
         all_predictions = []
         with torch.no_grad():
             for images in test_loader:
                 images = images.to(device)
 
                 # Test Time Augmentation
-                pred = model(images) / 2 # 원본 이미지를 예측하고
-                pred += model(torch.flip(images, dims=(-1,))) / 2 # horizontal_flip으로 뒤집어 예측합니다. 
+                pred = model(images) / 2  # 원본 이미지를 예측하고
+                pred += (
+                    model(torch.flip(images, dims=(-1,))) / 2
+                )  # horizontal_flip으로 뒤집어 예측합니다.
                 all_predictions.extend(pred.cpu().numpy())
 
             fold_pred = np.array(all_predictions)
@@ -334,23 +439,36 @@ def train(data_dir, model_dir, args):
 
     def encode_multi_class(mask_label, gender_label, age_label):
         return mask_label * 6 + gender_label * 3 + age_label
-    
+
     if args.multi_label:
-        (mask_outs, gender_outs, age_outs) = torch.split(torch.from_numpy(oof_pred), [3, 2, 3], dim=1)
-        pred = encode_multi_class(torch.argmax(mask_outs, -1), torch.argmax(gender_outs, -1), torch.argmax(age_outs, -1))
+        (mask_outs, gender_outs, age_outs) = torch.split(
+            torch.from_numpy(oof_pred), [3, 2, 3], dim=1
+        )
+        pred = encode_multi_class(
+            torch.argmax(mask_outs, -1),
+            torch.argmax(gender_outs, -1),
+            torch.argmax(age_outs, -1),
+        )
     else:
         pred = np.argmax(oof_pred, axis=1)
-    submission['ans'] = pred
+    submission["ans"] = pred
     # submission['ans'] = np.argmax(oof_pred, axis=1)
-    submission.to_csv(os.path.join(save_dir, 'submission.csv'), index=False)
+    submission.to_csv(os.path.join(save_dir, "submission.csv"), index=False)
 
-    print('test inference is done!')
+    print("test inference is done!")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Data and model checkpoints directories
-    parser.add_argument('-c', '--config', default='./config.json', type=str, help='config file path (default: ./config.json)')
+    parser.add_argument(
+        "-c",
+        "--config",
+        default="./config.json",
+        type=str,
+        help="config file path (default: ./config.json)",
+    )
     args = parser.parse_args()
     # print(args)
     config = read_json(args.config)

@@ -5,8 +5,7 @@ import torch.nn.functional as F
 
 # https://discuss.pytorch.org/t/is-this-a-correct-implementation-for-focal-loss-in-pytorch/43327/8
 class FocalLoss(nn.Module):
-    def __init__(self, weight=None,
-                 gamma=2., reduction='mean'):
+    def __init__(self, weight=None, gamma=2.0, reduction="mean"):
         nn.Module.__init__(self)
         self.weight = weight
         self.gamma = gamma
@@ -19,7 +18,7 @@ class FocalLoss(nn.Module):
             ((1 - prob) ** self.gamma) * log_prob,
             target_tensor,
             weight=self.weight,
-            reduction=self.reduction
+            reduction=self.reduction,
         )
 
 
@@ -67,10 +66,10 @@ class F1Loss(nn.Module):
 
 
 _criterion_entrypoints = {
-    'cross_entropy': nn.CrossEntropyLoss,
-    'focal': FocalLoss,
-    'label_smoothing': LabelSmoothingLoss,
-    'f1': F1Loss
+    "cross_entropy": nn.CrossEntropyLoss,
+    "focal": FocalLoss,
+    "label_smoothing": LabelSmoothingLoss,
+    "f1": F1Loss,
 }
 
 
@@ -87,5 +86,5 @@ def create_criterion(criterion_name, **kwargs):
         create_fn = criterion_entrypoint(criterion_name)
         criterion = create_fn(**kwargs)
     else:
-        raise RuntimeError('Unknown loss (%s)' % criterion_name)
+        raise RuntimeError("Unknown loss (%s)" % criterion_name)
     return criterion

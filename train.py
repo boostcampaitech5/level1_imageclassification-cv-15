@@ -19,6 +19,8 @@ from dataset import MaskBaseDataset
 from loss import create_criterion
 import wandb
 from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
+from imblearn.over_sampling import SMOTE
+from torchsampler import ImbalancedDatasetSampler
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -131,15 +133,32 @@ def train(s, model_dir, args):
     dataset.set_transform(transform)
 
     # -- data_loader
-    train_set, val_set = dataset.split_dataset()
 
+    train_set, val_set = dataset.split_dataset()
+    # print(len(train_set),len(val_set))
+    age_weights = [0.111,0.116,0.744]
+    t_sample_weights = [0]*len(train_set)
+    for idx, (data, multi_class_label) in enumerate(train_set):
+        mask_label, gender_label, age_label = dataset.decode_multi_class(multi_class_label)
+        age_weight = age_weights[age_label]
+        t_sample_weights[idx]=age_weight
+    v_sample_weights = [0]*len(val_set)
+    for idx, (data, multi_class_label) in enumerate(val_set):
+        mask_label, gender_label, age_label = dataset.decode_multi_class(multi_class_label)
+        age_weight = age_weights[age_label]
+        v_sample_weights[idx]=age_weight
+    train_sampler = torch.utils.data.sampler.WeightedRandomSampler(t_sample_weights,num_samples = len(t_sample_weights),replacement= True)
+    val_sampler = torch.utils.data.sampler.WeightedRandomSampler(v_sample_weights,num_samples = len(v_sample_weights),replacement= True)
+    #https://youtu.be/4JFVhJyTZ44 참고하기
+    #https://github.com/ufoym/imbalanced-dataset-sampler 이것도 참고 해보기
     train_loader = DataLoader(
         train_set,
         batch_size=args.batch_size,
         num_workers=multiprocessing.cpu_count() // 2,
-        shuffle=True,
+        shuffle=False,
         pin_memory=use_cuda,
         drop_last=True,
+        # sampler=train_sampler
     )
 
     val_loader = DataLoader(
@@ -149,6 +168,7 @@ def train(s, model_dir, args):
         shuffle=False,
         pin_memory=use_cuda,
         drop_last=True,
+        # sampler=val_sampler
     )
 
     # -- model
@@ -205,8 +225,8 @@ def train(s, model_dir, args):
             outs = model(inputs)
             preds = torch.argmax(outs, dim=-1)
             # loss_update = f1_criterion(outs, labels) * 0.6 + focal_criterion(outs, labels) *0.2 + ls_criterion(outs, labels) *0.2
-            loss_update = f1_criterion(outs, labels) * 0.6 + ls_criterion(outs, labels) *0.4
-            # loss_update = f1_criterion(outs, labels)
+            # loss_update = f1_criterion(outs, labels) * 0.6 + ls_criterion(outs, labels) *0.4
+            loss_update = focal_criterion(outs, labels)
 
             loss = loss_update
             # loss = criterion(outs, labels)

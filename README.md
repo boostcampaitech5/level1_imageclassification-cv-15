@@ -11,12 +11,9 @@
 
 ## News
 
-<<<<<<< HEAD
 **`2023-04-19`**: 
 - change age label threshold (60 -> 59)
 
-=======
->>>>>>> a67a7da598a3c0ff98aef24e83da8287e9ac2c6e
 **`2023-04-18` -  loss, optimizer Test**: 
 - loss
   - before : f1 loss
@@ -27,11 +24,7 @@
 - optimizer : AdamW
 
 **`2023-04-17` -  Augmentation Test**: 
-<<<<<<< HEAD
 - ~~Augmentation Setting : RandomRotation -15 ~ 15~~
-=======
-- Augmentation Setting : RandomRotation -15 ~ 15
->>>>>>> a67a7da598a3c0ff98aef24e83da8287e9ac2c6e
 - face crop preprocessing
 - test epoch : 30
 - lr step : 10

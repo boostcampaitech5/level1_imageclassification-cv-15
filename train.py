@@ -106,6 +106,20 @@ def train(data_dir, model_dir, args):
     # -- data_loader
     train_set, val_set = dataset.split_dataset(args.split_stratified)
 
+    age_weights = [0.111,0.116,0.744]
+    t_sample_weights = [0]*len(train_set)
+    for idx, (data, multi_class_label) in enumerate(train_set):
+        mask_label, gender_label, age_label = dataset.decode_multi_class(multi_class_label)
+        age_weight = age_weights[age_label]
+        t_sample_weights[idx]=age_weight
+    v_sample_weights = [0]*len(val_set)
+    for idx, (data, multi_class_label) in enumerate(val_set):
+        mask_label, gender_label, age_label = dataset.decode_multi_class(multi_class_label)
+        age_weight = age_weights[age_label]
+        v_sample_weights[idx]=age_weight
+    train_sampler = torch.utils.data.sampler.WeightedRandomSampler(t_sample_weights,num_samples = len(t_sample_weights),replacement= True)
+    val_sampler = torch.utils.data.sampler.WeightedRandomSampler(v_sample_weights,num_samples = len(v_sample_weights),replacement= True)
+    
     train_loader = DataLoader(
         train_set,
         batch_size=args.batch_size,

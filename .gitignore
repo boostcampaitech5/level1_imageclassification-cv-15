@@ -4,4 +4,6 @@ __pycache__/
 model/
 wandb/
 output/
+*input*/
+*mask*/
 *results*/

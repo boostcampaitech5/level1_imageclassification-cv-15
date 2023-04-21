@@ -127,6 +127,7 @@ def train(data_dir, model_dir, args):
         shuffle=True,
         pin_memory=use_cuda,
         drop_last=True,
+        sampler=train_sampler if args.sampler else None
     )
 
     val_loader = DataLoader(
@@ -136,6 +137,7 @@ def train(data_dir, model_dir, args):
         shuffle=False,
         pin_memory=use_cuda,
         drop_last=True,
+        sampler=val_sampler if args.sampler else None
     )
 
     # -- model

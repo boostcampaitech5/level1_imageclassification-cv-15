@@ -10,6 +10,10 @@
 
 
 ## News
+
+**`2023-04-20`**: 
+- Add Weighted Random Sampler
+
 **`2023-04-19`**: 
 - code refactoring
 
@@ -52,10 +56,9 @@
 ├── train.py
 ├── loss.py
 ├── dataset.py
-├── mask_data
-│   ├── eval
-│   ├── train
-│   └── ._train
+├── util.py
+├── train_kfold.py
+├── augmentation.py
 └── model.py
 ```
 

@@ -1,3 +1,9 @@
 __pycache__/
 
 *.ipynb
+model/
+wandb/
+output/
+*input*/
+*mask*/
+*results*/

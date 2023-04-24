@@ -61,14 +61,15 @@
 
 ```
 ├── README.md
-├── inference.py
-├── train.py
-├── loss.py
-├── dataset.py
-├── util.py
-├── train_kfold.py
 ├── augmentation.py
-└── model.py
+├── config.json
+├── dataset.py
+├── inference.py
+├── loss.py
+├── train_kfold.py
+├── train.py
+├── model.py
+└── util.py
 ```
 ----
 ## requirements

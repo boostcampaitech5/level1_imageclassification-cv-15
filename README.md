@@ -71,7 +71,8 @@
 └── model.py
 ```
 ----
-## requirements 
+## requirements
+- python==3.9.12
 - torch==1.7.1
 - torchvision==0.8.2
 - tensorboard==2.4.1

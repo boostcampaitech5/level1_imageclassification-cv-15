@@ -21,6 +21,10 @@
 ----
 ## Changes
 
+**`2023-04-28`**: 
+- Add Streamlit Prototype
+- Add Sample Weight
+
 **`2023-04-20`**: 
 - Add Weighted Random Sampler
 
@@ -62,6 +66,8 @@
 - Repository 는 다음과 같은 구조로 구성되어있습니다. 
 
 ```
+├── weights
+|     └── best.pth
 ├── README.md
 ├── augmentation.py
 ├── config.json
@@ -72,6 +78,7 @@
 ├── train.py
 ├── model.py
 └── util.py
+└── streamlit_app.py
 ```
 ----
 ## requirements
